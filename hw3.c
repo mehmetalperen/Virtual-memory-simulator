@@ -6,7 +6,7 @@
 #define VM_SIZE 128
 #define MM_SIZE 32
 #define PAGE_SIZE 8
-#define PAGE_NUM (VM_SIZE / PAGE_SIZE)
+#define TOT_PAGE_NUM 16
 
 int timer = 0;
 struct PageTableEntry
@@ -15,9 +15,9 @@ struct PageTableEntry
     int dirty_bit;
     int virtual_page_number; // = page_table[i]
     int physical_page_number;
-    int in_use; // 1 = in_use, 0 = not in use
-    int last_access_time;
-    int access_count; // how many times we access this
+    int in_use;           // 1 = in_use, 0 = not in use
+    int last_access_time; // For FIFO
+    int access_count;     // how many times we access this for LRU
 };
 
 void init_memory(int *memory, int size, int value)
@@ -45,10 +45,10 @@ void init_page_table(struct PageTableEntry *page_table, int size)
 int calc_physical_address(int physical_page_number, int offset)
 {
     int physical_address = physical_page_number * PAGE_SIZE + offset;
-    return (physical_page_number < PAGE_NUM) ? physical_address : -1;
+    return (physical_page_number < TOT_PAGE_NUM) ? physical_address : -1;
 }
 
-int find_available_el(struct PageTableEntry *page_table, int size)
+int find_available_element(struct PageTableEntry *page_table, int size)
 {
     for (int i = 0; i < size; i++)
     {
@@ -88,16 +88,16 @@ int find_evict_el_lru(struct PageTableEntry *page_table, int size)
 
 void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_memory, int virtual_page_number, int replacement_algorithm)
 {
-    int physical_page_number = find_available_el(page_table, PAGE_NUM);
+    int physical_page_number = find_available_element(page_table, TOT_PAGE_NUM);
     if (physical_page_number == -1) // no available space in RAM. Swap
-    {
+    {                               // FYI: never executed this block of line
         if (replacement_algorithm == 0)
         {
-            physical_page_number = find_evict_el_fifo(page_table, PAGE_NUM);
+            physical_page_number = find_evict_el_fifo(page_table, TOT_PAGE_NUM);
         }
         else
         {
-            physical_page_number = find_evict_el_lru(page_table, PAGE_NUM);
+            physical_page_number = find_evict_el_lru(page_table, TOT_PAGE_NUM);
         }
         // printf("swap with: %d\n", physical_page_number);
         if (page_table[physical_page_number].dirty_bit) // update disk bc file editted
@@ -166,7 +166,7 @@ void write_memory(struct PageTableEntry *page_table, int *disk_memory, int *main
 }
 void showptable(struct PageTableEntry *page_table)
 {
-    for (int i = 0; i < PAGE_NUM; i++)
+    for (int i = 0; i < TOT_PAGE_NUM; i++)
     {
         printf("%d:%d:%d:%d\n", i, page_table[i].valid_bit, page_table[i].dirty_bit, page_table[i].physical_page_number);
     }
@@ -179,15 +179,13 @@ int main(int argc, char *argv[])
         replacement_algorithm = 1;
     }
 
-    int virtual_memory[VM_SIZE];
     int main_memory[MM_SIZE];
     int disk_memory[VM_SIZE];
-    struct PageTableEntry page_table[PAGE_NUM];
+    struct PageTableEntry page_table[TOT_PAGE_NUM];
 
-    init_memory(virtual_memory, VM_SIZE, -1);
     init_memory(main_memory, MM_SIZE, -1);
     init_memory(disk_memory, VM_SIZE, -1);
-    init_page_table(page_table, PAGE_NUM);
+    init_page_table(page_table, TOT_PAGE_NUM);
 
     char command[10];
     int virtual_address;
