@@ -47,6 +47,7 @@ void read_memory(int *virtual_memory, struct PageTableEntry *page_table, int *ma
     int offset = virtual_address % PAGE_SIZE;
     if (page_table[page_number].valid_bit == 0)
     {
+        printf("A Page Fault Has Occurred\n");
         printf("need to implement load\n");
     }
     int physical_page_number = page_table[page_number].physical_page_number;
@@ -66,6 +67,7 @@ void write_memory(int *virtual_memory, struct PageTableEntry *page_table, int *m
     int offset = virtual_address % PAGE_SIZE;
     if (page_table[page_number].valid_bit == 0)
     {
+        printf("A Page Fault Has Occurred\n");
         printf("need to implement load\n");
     }
     int physical_page_number = page_table[page_number].physical_page_number;
