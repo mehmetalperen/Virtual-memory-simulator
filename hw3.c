@@ -57,9 +57,10 @@ int find_empty_page_in_main_mem(struct PageTableEntry *page_table)
             main_mem_page_in_use[page_table[i].physical_page_number] = 1;
         }
     }
-    for (int i = 0; i < MM_PAGE_COUNT; i++) 
+    for (int i = 0; i < MM_PAGE_COUNT; i++)
     {
-        if (main_mem_page_in_use[i] == 0) {
+        if (main_mem_page_in_use[i] == 0)
+        {
             return i;
         }
     }
@@ -114,7 +115,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
         {
             printf("Page %d has been edited. Copy it to Disk\n", physical_page_number);
             int disk_page_number = page_table[physical_page_number].virtual_page_number; // physical_page_number = virtual_page_number btw
-            for (int i = 0; i < PAGE_SIZE; i++) 
+            for (int i = 0; i < PAGE_SIZE; i++)
             {
                 memcpy(&disk_memory[disk_page_number * PAGE_SIZE + i], &main_memory[physical_page_number * PAGE_SIZE + 1], sizeof(int));
             }
@@ -128,7 +129,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
     }
 
     printf("Copying from page %d in Disk to page %d in Main Mem.\n", virtual_page_number, physical_page_number);
-    for (int i = 0; i < PAGE_SIZE; i++) 
+    for (int i = 0; i < PAGE_SIZE; i++)
     {
         memcpy(&main_memory[physical_page_number * PAGE_SIZE + i], &disk_memory[virtual_page_number * PAGE_SIZE + 1], sizeof(int)); // load file to RAM
     }
@@ -157,6 +158,7 @@ void read_memory(struct PageTableEntry *page_table, int *disk_memory, int *main_
     }
 
     page_table[virtual_page_number].access_count++;
+    page_table[virtual_page_number].last_access_time = timer; // Update access time
     printf("%d\n", main_memory[physical_address]);
 }
 
@@ -193,7 +195,7 @@ void showptable(struct PageTableEntry *page_table)
 
 void showmain(int *main_memory, int physical_page_number)
 {
-    if (physical_page_number < MM_PAGE_COUNT) 
+    if (physical_page_number < MM_PAGE_COUNT)
     {
         for (int i = 0; i < PAGE_SIZE; i++)
         {
