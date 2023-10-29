@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
     {
         printf("> ");
         scanf("%s", command);
-        if (strcmp(command, "exit") == 0) // Not sure how we exit the program
+        if (strcmp(command, "quit") == 0)
         {
             break;
         }
