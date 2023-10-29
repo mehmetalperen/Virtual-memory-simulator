@@ -50,16 +50,17 @@ int calc_physical_address(int physical_page_number, int offset)
 int find_empty_page_in_main_mem(struct PageTableEntry *page_table)
 {
     int main_mem_page_in_use[MM_PAGE_COUNT] = {0};
-    for (int i = 0; i < VM_PAGE_COUNT; i++)
+    for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
         if (page_table[i].valid_bit == 1)
         {
             main_mem_page_in_use[page_table[i].physical_page_number] = 1;
         }
     }
-    for (int i = 0; i < MM_PAGE_COUNT; i++) 
+    for (int i = 0; i < MM_PAGE_COUNT; i++)
     {
-        if (main_mem_page_in_use[i] == 0) {
+        if (main_mem_page_in_use[i] == 0)
+        {
             return i;
         }
     }
@@ -68,11 +69,11 @@ int find_empty_page_in_main_mem(struct PageTableEntry *page_table)
 
 int find_page_to_evict_fifo(struct PageTableEntry *page_table) // NEED TO BE FIXED
 {
-    int victim_page_number = 0;
+    int victim_page_number = -1;
     int earliest_access_time = timer + 1;
-    for (int i = 0; i < VM_PAGE_COUNT; i++)
+    for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
-        if (page_table[i].last_access_time < earliest_access_time) // fifo: first_el.last_access_time always the least
+        if (page_table[i].valid_bit == 1 && page_table[i].last_access_time < earliest_access_time) // has to be valid_bit |||| fifo: first_el.last_access_time always the least
         {
             victim_page_number = i;
             earliest_access_time = page_table[i].last_access_time;
@@ -81,14 +82,16 @@ int find_page_to_evict_fifo(struct PageTableEntry *page_table) // NEED TO BE FIX
     return victim_page_number;
 }
 
-int find_page_to_evict_lru(struct PageTableEntry *page_table, int size) // NEED TO BE FIXED
+int find_page_to_evict_lru(struct PageTableEntry *page_table) // NEED TO BE FIXED
 {
-    int victim_page_number = 0;
-    for (int i = 1; i < size; i++)
+    int victim_page_number = -1;
+    int least_access_count = INT_MAX;
+    for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
-        if (page_table[i].access_count < page_table[victim_page_number].access_count) // evict element that is being used the least
+        if (page_table[i].valid_bit == 1 && page_table[i].access_count < least_access_count) // has to be valid_bit |||| evict element that is being used the least
         {
             victim_page_number = i;
+            least_access_count = page_table[i].access_count;
         }
     }
     return victim_page_number;
@@ -104,17 +107,25 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
         {
             physical_page_number = 0;
             // physical_page_number = find_page_to_evict_fifo(page_table);
+            if (physical_page_number == -1)
+            {
+                printf("ERR: in find_page_to_evict_fifo");
+            }
         }
         else
         {
-            physical_page_number = find_page_to_evict_lru(page_table, VM_PAGE_COUNT);
+            physical_page_number = find_page_to_evict_lru(page_table);
+            if (physical_page_number == -1)
+            {
+                printf("ERR: in find_page_to_evict_lru");
+            }
         }
         printf("Evicting page %d in Main Mem\n", physical_page_number);
         if (page_table[physical_page_number].dirty_bit) // update disk bc file editted
         {
             printf("Page %d has been edited. Copy it to Disk\n", physical_page_number);
             int disk_page_number = page_table[physical_page_number].virtual_page_number; // physical_page_number = virtual_page_number btw
-            for (int i = 0; i < PAGE_SIZE; i++) 
+            for (int i = 0; i < PAGE_SIZE; i++)
             {
                 memcpy(&disk_memory[disk_page_number * PAGE_SIZE + i], &main_memory[physical_page_number * PAGE_SIZE + 1], sizeof(int));
             }
@@ -128,9 +139,9 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
     }
 
     printf("Copying from page %d in Disk to page %d in Main Mem.\n", virtual_page_number, physical_page_number);
-    for (int i = 0; i < PAGE_SIZE; i++) 
+    for (int i = 0; i < PAGE_SIZE; i++)
     {
-        memcpy(&main_memory[physical_page_number * PAGE_SIZE + i], &disk_memory[virtual_page_number * PAGE_SIZE + 1], sizeof(int)); // load file to RAM
+        memcpy(&main_memory[physical_page_number * PAGE_SIZE + i], &disk_memory[virtual_page_number * PAGE_SIZE + 1], sizeof(int)); // load file to RAM |||| what is the +1 here: &disk_memory[virtual_page_number * PAGE_SIZE + 1]? shouldnt it be +i?. if this is a mistake, fix line 130 as well. you have that thing in load_page function as well
     }
     page_table[virtual_page_number].physical_page_number = physical_page_number;
     page_table[virtual_page_number].virtual_page_number = virtual_page_number; // Update the virtual_page_number
@@ -157,6 +168,7 @@ void read_memory(struct PageTableEntry *page_table, int *disk_memory, int *main_
     }
 
     page_table[virtual_page_number].access_count++;
+    page_table[virtual_page_number].last_access_time = timer; // Update access time
     printf("%d\n", main_memory[physical_address]);
 }
 
@@ -185,7 +197,7 @@ void write_memory(struct PageTableEntry *page_table, int *disk_memory, int *main
 
 void showptable(struct PageTableEntry *page_table)
 {
-    for (int i = 0; i < VM_PAGE_COUNT; i++)
+    for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
         printf("%d:%d:%d:%d\n", i, page_table[i].valid_bit, page_table[i].dirty_bit, page_table[i].physical_page_number);
     }
@@ -193,7 +205,7 @@ void showptable(struct PageTableEntry *page_table)
 
 void showmain(int *main_memory, int physical_page_number)
 {
-    if (physical_page_number < MM_PAGE_COUNT) 
+    if (physical_page_number < MM_PAGE_COUNT)
     {
         for (int i = 0; i < PAGE_SIZE; i++)
         {
@@ -216,11 +228,11 @@ int main(int argc, char *argv[])
 
     int main_memory[MM_SIZE];
     int disk_memory[VM_SIZE];
-    struct PageTableEntry page_table[VM_PAGE_COUNT];
+    struct PageTableEntry page_table[VM_PAGE_COUNT]; // VM_PAGE_COUNT = page table's size
 
     init_memory(main_memory, MM_SIZE, -1);
     init_memory(disk_memory, VM_SIZE, -1);
-    init_page_table(page_table, VM_PAGE_COUNT);
+    init_page_table(page_table, VM_PAGE_COUNT); // VM_PAGE_COUNT = page table's size
 
     char command[10];
     int virtual_address;
@@ -229,7 +241,7 @@ int main(int argc, char *argv[])
     {
         printf("> ");
         scanf("%s", command);
-        if (strcmp(command, "exit") == 0) // Not sure how we exit the program
+        if (strcmp(command, "quit") == 0)
         {
             break;
         }
