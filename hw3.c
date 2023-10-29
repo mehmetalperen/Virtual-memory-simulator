@@ -3,10 +3,11 @@
 #include <string.h>
 #include <limits.h>
 
-#define VM_SIZE 128
-#define MM_SIZE 32
 #define PAGE_SIZE 8
-#define TOT_PAGE_NUM 16
+#define VM_SIZE 128
+#define VM_PAGE_COUNT 16 // also equals to page table's size
+#define MM_SIZE 32
+#define MM_PAGE_COUNT 4
 
 int timer = 0;
 struct PageTableEntry
@@ -15,7 +16,6 @@ struct PageTableEntry
     int dirty_bit;
     int virtual_page_number; // = page_table[i]
     int physical_page_number;
-    int in_use;           // 1 = in_use, 0 = not in use
     int last_access_time; // For FIFO
     int access_count;     // how many times we access this for LRU
 };
@@ -36,7 +36,6 @@ void init_page_table(struct PageTableEntry *page_table, int size)
         page_table[i].dirty_bit = 0;
         page_table[i].virtual_page_number = i;
         page_table[i].physical_page_number = -1; // -1 no page in main memory
-        page_table[i].in_use = 0;
         page_table[i].last_access_time = timer;
         page_table[i].access_count = 0;
     }
@@ -45,75 +44,94 @@ void init_page_table(struct PageTableEntry *page_table, int size)
 int calc_physical_address(int physical_page_number, int offset)
 {
     int physical_address = physical_page_number * PAGE_SIZE + offset;
-    return (physical_page_number < TOT_PAGE_NUM) ? physical_address : -1;
+    return (physical_page_number < VM_PAGE_COUNT) ? physical_address : -1;
 }
 
-int find_available_element(struct PageTableEntry *page_table, int size)
+int find_empty_page_in_main_mem(struct PageTableEntry *page_table)
 {
-    for (int i = 0; i < size; i++)
+    int main_mem_page_in_use[MM_PAGE_COUNT] = {0};
+    for (int i = 0; i < VM_PAGE_COUNT; i++)
     {
-        if (!page_table[i].in_use)
+        if (page_table[i].valid_bit == 1)
         {
+            main_mem_page_in_use[page_table[i].physical_page_number] = 1;
+        }
+    }
+    for (int i = 0; i < MM_PAGE_COUNT; i++) 
+    {
+        if (main_mem_page_in_use[i] == 0) {
             return i;
         }
     }
     return -1;
 }
 
-int find_evict_el_fifo(struct PageTableEntry *page_table, int size)
+int find_page_to_evict_fifo(struct PageTableEntry *page_table) // NEED TO BE FIXED
 {
-    int evict_el = 0;
-    for (int i = 1; i < size; i++)
+    int victim_page_number = 0;
+    int earliest_access_time = timer + 1;
+    for (int i = 0; i < VM_PAGE_COUNT; i++)
     {
-        if (page_table[i].last_access_time < page_table[evict_el].last_access_time) // fifo: first_el.last_access_time always the least
+        if (page_table[i].last_access_time < earliest_access_time) // fifo: first_el.last_access_time always the least
         {
-            evict_el = i;
+            victim_page_number = i;
+            earliest_access_time = page_table[i].last_access_time;
         }
     }
-    return evict_el;
+    return victim_page_number;
 }
 
-int find_evict_el_lru(struct PageTableEntry *page_table, int size)
+int find_page_to_evict_lru(struct PageTableEntry *page_table, int size) // NEED TO BE FIXED
 {
-    int evict_el = 0;
+    int victim_page_number = 0;
     for (int i = 1; i < size; i++)
     {
-        if (page_table[i].access_count < page_table[evict_el].access_count) // evict element that is being used the least
+        if (page_table[i].access_count < page_table[victim_page_number].access_count) // evict element that is being used the least
         {
-            evict_el = i;
+            victim_page_number = i;
         }
     }
-    return evict_el;
+    return victim_page_number;
 }
 
 void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_memory, int virtual_page_number, int replacement_algorithm)
 {
-    int physical_page_number = find_available_element(page_table, TOT_PAGE_NUM);
+    int physical_page_number = find_empty_page_in_main_mem(page_table);
     if (physical_page_number == -1) // no available space in RAM. Swap
     {                               // FYI: never executed this block of line
+        printf("No empty page in Main Mem. Need to evict\n");
         if (replacement_algorithm == 0)
         {
-            physical_page_number = find_evict_el_fifo(page_table, TOT_PAGE_NUM);
+            physical_page_number = 0;
+            // physical_page_number = find_page_to_evict_fifo(page_table);
         }
         else
         {
-            physical_page_number = find_evict_el_lru(page_table, TOT_PAGE_NUM);
+            physical_page_number = find_page_to_evict_lru(page_table, VM_PAGE_COUNT);
         }
-        // printf("swap with: %d\n", physical_page_number);
+        printf("Evicting page %d in Main Mem\n", physical_page_number);
         if (page_table[physical_page_number].dirty_bit) // update disk bc file editted
         {
+            printf("Page %d has been edited. Copy it to Disk\n", physical_page_number);
             int disk_page_number = page_table[physical_page_number].virtual_page_number; // physical_page_number = virtual_page_number btw
-            memcpy(&disk_memory[disk_page_number * PAGE_SIZE], &main_memory[physical_page_number * PAGE_SIZE], PAGE_SIZE * sizeof(int));
+            for (int i = 0; i < PAGE_SIZE; i++) 
+            {
+                memcpy(&disk_memory[disk_page_number * PAGE_SIZE + i], &main_memory[physical_page_number * PAGE_SIZE + 1], sizeof(int));
+            }
             page_table[physical_page_number].dirty_bit = 0;
         }
         page_table[physical_page_number].valid_bit = 0;
-        page_table[physical_page_number].in_use = 0;
     }
     else
     { // there is an available sapce in RAM. in use rn
-        page_table[physical_page_number].in_use = 1;
+        printf("Page %d in Main Mem is empty.\n", physical_page_number);
     }
-    memcpy(&main_memory[physical_page_number * PAGE_SIZE], &disk_memory[virtual_page_number * PAGE_SIZE], PAGE_SIZE * sizeof(int)); // load file to RAM
+
+    printf("Copying from page %d in Disk to page %d in Main Mem.\n", virtual_page_number, physical_page_number);
+    for (int i = 0; i < PAGE_SIZE; i++) 
+    {
+        memcpy(&main_memory[physical_page_number * PAGE_SIZE + i], &disk_memory[virtual_page_number * PAGE_SIZE + 1], sizeof(int)); // load file to RAM
+    }
     page_table[virtual_page_number].physical_page_number = physical_page_number;
     page_table[virtual_page_number].virtual_page_number = virtual_page_number; // Update the virtual_page_number
     page_table[virtual_page_number].valid_bit = 1;
@@ -164,13 +182,30 @@ void write_memory(struct PageTableEntry *page_table, int *disk_memory, int *main
     page_table[virtual_page_number].last_access_time = timer; // Update access time
     page_table[virtual_page_number].access_count++;
 }
+
 void showptable(struct PageTableEntry *page_table)
 {
-    for (int i = 0; i < TOT_PAGE_NUM; i++)
+    for (int i = 0; i < VM_PAGE_COUNT; i++)
     {
         printf("%d:%d:%d:%d\n", i, page_table[i].valid_bit, page_table[i].dirty_bit, page_table[i].physical_page_number);
     }
 }
+
+void showmain(int *main_memory, int physical_page_number)
+{
+    if (physical_page_number < MM_PAGE_COUNT) 
+    {
+        for (int i = 0; i < PAGE_SIZE; i++)
+        {
+            printf("%d: %d\n", physical_page_number + i, main_memory[physical_page_number + i]);
+        }
+    }
+    else
+    {
+        printf("Main memory doesn't have this page.\n");
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int replacement_algorithm = 0; // FIFO = 0, LRU = 1
@@ -181,11 +216,11 @@ int main(int argc, char *argv[])
 
     int main_memory[MM_SIZE];
     int disk_memory[VM_SIZE];
-    struct PageTableEntry page_table[TOT_PAGE_NUM];
+    struct PageTableEntry page_table[VM_PAGE_COUNT];
 
     init_memory(main_memory, MM_SIZE, -1);
     init_memory(disk_memory, VM_SIZE, -1);
-    init_page_table(page_table, TOT_PAGE_NUM);
+    init_page_table(page_table, VM_PAGE_COUNT);
 
     char command[10];
     int virtual_address;
@@ -225,6 +260,12 @@ int main(int argc, char *argv[])
         else if (strcmp(command, "showptable") == 0)
         {
             showptable(page_table);
+        }
+        else if (strcmp(command, "showmain") == 0)
+        {
+            int physical_page_number;
+            scanf("%d", &physical_page_number);
+            showmain(main_memory, physical_page_number);
         }
         else
         {
