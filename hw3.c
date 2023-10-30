@@ -16,7 +16,7 @@ struct PageTableEntry
     int dirty_bit;
     int physical_page_number;
     int loaded_to_main_mem_time; // For FIFO
-    int last_access_time; // For LRU
+    int last_access_time;        // For LRU
 };
 
 void init_memory(int *memory, int size, int value)
@@ -33,7 +33,7 @@ void init_page_table(struct PageTableEntry *page_table, int size)
     {
         page_table[i].valid_bit = 0;
         page_table[i].dirty_bit = 0;
-        page_table[i].physical_page_number = -1; // -1 means no page in main memory
+        page_table[i].physical_page_number = i;
         page_table[i].loaded_to_main_mem_time = 0;
         page_table[i].last_access_time = timer;
     }
@@ -98,7 +98,7 @@ int find_page_to_evict_lru(struct PageTableEntry *page_table)
 void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_memory, int virtual_page_number, int replacement_algorithm)
 {
     int victim_physical_page_number = find_empty_page_in_main_mem(page_table);
-    if (victim_physical_page_number == -1) // no available space in RAM. 
+    if (victim_physical_page_number == -1) // no available space in RAM.
     {
         printf("No empty page in Main Mem. Need to evict\n");
         int victim_virtual_page_number = -1;
@@ -109,6 +109,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
             if (victim_virtual_page_number == -1)
             {
                 printf("ERR: in find_page_to_evict_fifo");
+                exit(-1);
             }
         }
         else
@@ -117,6 +118,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
             if (victim_virtual_page_number == -1)
             {
                 printf("ERR: in find_page_to_evict_lru");
+                exit(-1);
             }
         }
         victim_physical_page_number = page_table[victim_virtual_page_number].physical_page_number;
@@ -131,7 +133,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
             page_table[victim_virtual_page_number].dirty_bit = 0;
         }
         page_table[victim_virtual_page_number].valid_bit = 0;
-        page_table[victim_virtual_page_number].physical_page_number = -1;
+        page_table[victim_virtual_page_number].physical_page_number = victim_virtual_page_number;
         page_table[victim_virtual_page_number].loaded_to_main_mem_time = 0;
         page_table[victim_virtual_page_number].last_access_time = 0;
     }
@@ -165,7 +167,7 @@ void read_memory(struct PageTableEntry *page_table, int *disk_memory, int *main_
     if (physical_address == -1)
     {
         printf("ERROR: physical_address == -1\n");
-        return;
+        exit(-1);
     }
 
     page_table[virtual_page_number].last_access_time = timer; // Update access time
@@ -186,7 +188,7 @@ void write_memory(struct PageTableEntry *page_table, int *disk_memory, int *main
     if (physical_address == -1)
     {
         printf("ERROR: physical_address == -1\n");
-        return;
+        exit(-1);
     }
 
     main_memory[physical_address] = data;
@@ -198,8 +200,8 @@ void showptable(struct PageTableEntry *page_table)
 {
     for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
-        printf("%d:%d:%d:%d    %d:%d\n", i, page_table[i].valid_bit, page_table[i].dirty_bit, 
-            page_table[i].physical_page_number, page_table[i].loaded_to_main_mem_time, page_table[i].last_access_time);
+        printf("%d:%d:%d:%d    ||%d:%d\n", i, page_table[i].valid_bit, page_table[i].dirty_bit,
+               page_table[i].physical_page_number, page_table[i].loaded_to_main_mem_time, page_table[i].last_access_time);
     }
 }
 
@@ -209,7 +211,7 @@ void showmain(int *main_memory, int physical_page_number)
     {
         for (int i = 0; i < PAGE_SIZE; i++)
         {
-            printf("%d: %d\n", physical_page_number + i, main_memory[physical_page_number + i]);
+            printf("%d: %d\n", physical_page_number * PAGE_SIZE + i, main_memory[physical_page_number * PAGE_SIZE + i]);
         }
     }
     else
@@ -239,7 +241,7 @@ int main(int argc, char *argv[])
     int data;
     while (1)
     {
-        printf("(time = %d)> ", timer);
+        printf("(time = %d)> ", timer); // remove this later
         scanf("%s", command);
         if (strcmp(command, "quit") == 0)
         {
