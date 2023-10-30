@@ -67,32 +67,32 @@ int find_empty_page_in_main_mem(struct PageTableEntry *page_table)
 
 int find_page_to_evict_fifo(struct PageTableEntry *page_table)
 {
-    int victim_page_number = -1;
+    int victim_virtual_page_number = -1;
     int earliest_loaded_in_main_mem_time = timer + 1;
     for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
         if (page_table[i].valid_bit == 1 && page_table[i].loaded_to_main_mem_time < earliest_loaded_in_main_mem_time)
         {
-            victim_page_number = i;
+            victim_virtual_page_number = i;
             earliest_loaded_in_main_mem_time = page_table[i].loaded_to_main_mem_time;
         }
     }
-    return victim_page_number;
+    return victim_virtual_page_number;
 }
 
 int find_page_to_evict_lru(struct PageTableEntry *page_table)
 {
-    int victim_page_number = -1;
+    int victim_virtual_page_number = -1;
     int earliest_access_time = timer + 1;
     for (int i = 0; i < VM_PAGE_COUNT; i++) // VM_PAGE_COUNT = page table's size
     {
         if (page_table[i].valid_bit == 1 && page_table[i].last_access_time < earliest_access_time) // has to be valid_bit |||| fifo: first_el.last_access_time always the least
         {
-            victim_page_number = i;
+            victim_virtual_page_number = i;
             earliest_access_time = page_table[i].last_access_time;
         }
     }
-    return victim_page_number;
+    return victim_virtual_page_number;
 }
 
 void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_memory, int virtual_page_number, int replacement_algorithm)
@@ -101,34 +101,25 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
     if (victim_physical_page_number == -1) // no available space in RAM. 
     {
         printf("No empty page in Main Mem. Need to evict\n");
+        int victim_virtual_page_number = -1;
         if (replacement_algorithm == 0)
         {
-            // victim_physical_page_number = 0;
-            victim_physical_page_number = find_page_to_evict_fifo(page_table);
-            if (victim_physical_page_number == -1)
+            // victim_virtual_page_number = 0;
+            victim_virtual_page_number = find_page_to_evict_fifo(page_table);
+            if (victim_virtual_page_number == -1)
             {
                 printf("ERR: in find_page_to_evict_fifo");
             }
         }
         else
         {
-            victim_physical_page_number = find_page_to_evict_lru(page_table);
-            if (victim_physical_page_number == -1)
+            victim_virtual_page_number = find_page_to_evict_lru(page_table);
+            if (victim_virtual_page_number == -1)
             {
                 printf("ERR: in find_page_to_evict_lru");
             }
         }
-        int victim_virtual_page_number = -1;
-        for (int i = 0; i < VM_PAGE_COUNT; i++)
-        {
-            if (page_table[i].physical_page_number == victim_physical_page_number)
-            {
-                victim_virtual_page_number = i;
-            }
-        }
-        if (victim_virtual_page_number == -1) {
-            printf("ERR: Can't find the victim_physical_page_number in the Page Table\n");
-        }
+        victim_physical_page_number = page_table[victim_virtual_page_number].physical_page_number;
         printf("Evicting page %d in Page Table (page %d in Main Mem)\n", victim_virtual_page_number, victim_physical_page_number);
         if (page_table[victim_virtual_page_number].dirty_bit) // update disk bc file editted
         {
@@ -146,7 +137,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
     }
     else
     { // there is an available space in RAM
-        printf("Page %d in Main Mem is empty.\n", victim_physical_page_number);
+        printf("Page %d in Main Mem is empty (does not exist in Page Table).\n", victim_physical_page_number);
     }
 
     printf("Copying from page %d in Disk to page %d in Main Mem.\n", virtual_page_number, victim_physical_page_number);
