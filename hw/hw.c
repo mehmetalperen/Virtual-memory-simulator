@@ -102,32 +102,18 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
     int victim_physical_page_number = find_empty_page_in_main_mem(page_table);
     if (victim_physical_page_number == -1) // no available space in RAM.
     {
-        // printf("No empty page in Main Mem. Need to evict\n");
         int victim_virtual_page_number = -1;
         if (replacement_algorithm == 0)
         {
-            // victim_virtual_page_number = 0;
             victim_virtual_page_number = find_page_to_evict_fifo(page_table);
-            // if (victim_virtual_page_number == -1)
-            // {
-            //     // printf("ERR: in find_page_to_evict_fifo");
-            //     exit(-1);
-            // }
         }
         else
         {
             victim_virtual_page_number = find_page_to_evict_lru(page_table);
-            // if (victim_virtual_page_number == -1)
-            // {
-            //     // printf("ERR: in find_page_to_evict_lru");
-            //     exit(-1);
-            // }
         }
         victim_physical_page_number = page_table[victim_virtual_page_number].physical_page_number;
-        // printf("Evicting page %d in Page Table (page %d in Main Mem)\n", victim_virtual_page_number, victim_physical_page_number);
         if (page_table[victim_virtual_page_number].dirty_bit) // update disk bc file editted
         {
-            // printf("Page %d in Page Table (page %d in Main Mem) has been edited. Copy it to Disk\n", victim_virtual_page_number, victim_physical_page_number);
             for (int i = 0; i < PAGE_SIZE; i++)
             {
                 memcpy(&disk_memory[victim_virtual_page_number * PAGE_SIZE + i], &main_memory[victim_physical_page_number * PAGE_SIZE + i], sizeof(int));
@@ -139,12 +125,7 @@ void load_page(struct PageTableEntry *page_table, int *disk_memory, int *main_me
         page_table[victim_virtual_page_number].loaded_to_main_mem_time = 0;
         page_table[victim_virtual_page_number].last_access_time = 0;
     }
-    // else
-    // { // there is an available space in RAM
-    //     printf("Page %d in Main Mem is empty (does not exist in Page Table).\n", victim_physical_page_number);
-    // }
 
-    // printf("Copying from page %d in Disk to page %d in Main Mem.\n", virtual_page_number, victim_physical_page_number);
     for (int i = 0; i < PAGE_SIZE; i++)
     {
         memcpy(&main_memory[victim_physical_page_number * PAGE_SIZE + i], &disk_memory[virtual_page_number * PAGE_SIZE + i], sizeof(int)); // load file to RAM
@@ -166,11 +147,6 @@ void read_memory(struct PageTableEntry *page_table, int *disk_memory, int *main_
     }
     int physical_page_number = page_table[virtual_page_number].physical_page_number;
     int physical_address = calc_physical_address(physical_page_number, offset);
-    // if (physical_address == -1)
-    // {
-    //     // printf("ERROR: physical_address == -1\n");
-    //     exit(-1);
-    // }
 
     page_table[virtual_page_number].last_access_time = timer; // Update access time
     printf("%d\n", main_memory[physical_address]);
@@ -187,11 +163,6 @@ void write_memory(struct PageTableEntry *page_table, int *disk_memory, int *main
     }
     int physical_page_number = page_table[virtual_page_number].physical_page_number;
     int physical_address = calc_physical_address(physical_page_number, offset);
-    // if (physical_address == -1)
-    // {
-    //     // printf("ERROR: physical_address == -1\n");
-    //     exit(-1);
-    // }
 
     main_memory[physical_address] = data;
     page_table[virtual_page_number].dirty_bit = 1;
@@ -215,10 +186,6 @@ void showmain(int *main_memory, int physical_page_number)
             printf("%d: %d\n", physical_page_number * PAGE_SIZE + i, main_memory[physical_page_number * PAGE_SIZE + i]);
         }
     }
-    // else
-    // {
-    //     printf("Main memory doesn't have this page.\n");
-    // }
 }
 
 int main(int argc, char *argv[])
@@ -242,7 +209,6 @@ int main(int argc, char *argv[])
     int data;
     while (1)
     {
-        // printf("(time = %d)> ", timer); // remove this later
         scanf("%s", command);
         if (strcmp(command, "quit") == 0)
         {
@@ -282,10 +248,6 @@ int main(int argc, char *argv[])
             scanf("%d", &physical_page_number);
             showmain(main_memory, physical_page_number);
         }
-        // else
-        // {
-        //     printf("Invalid command\n");
-        // }
         timer++;
     }
 
